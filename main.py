@@ -1,6 +1,9 @@
 import sys
 import requests
 import json
+import logging
+import time
+import os
 from typing import NamedTuple
 from datetime import datetime, timedelta
 from config import *
@@ -24,16 +27,16 @@ def loginToWs(optCode: str):
 	result = requests.post(
 		WS_OAUTH_URL,
 		data = {
-			"grant_type":"password",
-			"username":WS_USERNAME,
-			"password":WS_PASSWORD,
-			"skip_provision":True,
-			"otp_claim":None,
-			"scope":"invest.read invest.write mfda.read mfda.write mercer.read mercer.write trade.read trade.write empower.read empower.write tax.read tax.write",
-			"client_id":"4da53ac2b03225bed1550eba8e4611e086c7b905a3855e6ed12ea08c246758fa"
+			"grant_type": "password",
+			"username": WS_USERNAME,
+			"password": WS_PASSWORD,
+			"skip_provision": True,
+			"otp_claim": None,
+			"scope": "invest.read invest.write mfda.read mfda.write mercer.read mercer.write trade.read trade.write empower.read empower.write tax.read tax.write",
+			"client_id": "4da53ac2b03225bed1550eba8e4611e086c7b905a3855e6ed12ea08c246758fa"
 		},
 		headers = {
-			"x-wealthsimple-otp" : optCode
+			"x-wealthsimple-otp": optCode
 		}
 	)
 	response = json.loads(result.content)
@@ -48,10 +51,7 @@ def getWsTradeBalance(ws: WsSession, assetLink: AssetLink):
 	)
 	balance = json.loads(result.content)["results"][-1]
 	
-	if balance:
-		return Balance(balance["value"]["amount"], balance["date"])
-
-	return None
+	return Balance(balance["value"]["amount"], balance["date"])
 
 def getWsNonTradeBalance(ws: WsSession, assetLink: AssetLink):
 	response = requests.post(
@@ -72,7 +72,7 @@ def getWsNonTradeBalance(ws: WsSession, assetLink: AssetLink):
 		if balance["accountId"] == assetLink.wsAccountId:
 			return Balance(balance["netLiquidationValue"], balance["date"])
 	
-	return None
+	raise ("Wealthsimple Non-trade account not found", balances)
 
 def updateLunchMoneyAsset(balance: Balance, assetLink: AssetLink):
 	response = requests.put(
@@ -86,16 +86,48 @@ def updateLunchMoneyAsset(balance: Balance, assetLink: AssetLink):
 		}
 	)
 
-	print(response.content)
+	if response.status_code != 200:
+		raise "Failed to update lunch money asset"
+
+	return response.content.decode("utf-8")
+
+if not os.path.isdir("logs"):
+	os.mkdir("logs")
+logging.basicConfig(
+	filename = "logs/%d.log" % int(time.time()),
+	filemode = "w",
+	format = "%(asctime)s: %(levelname)s - %(message)s",
+	level = logging.INFO
+)
 
 if len(sys.argv) != 2:
 	print("Usage: main.py <otp_code>")
 	sys.exit(1)
 otpCode = sys.argv[1]
 
-ws = loginToWs(otpCode)
+logging.info("Logging in and syncing %s's Wealthsimple Accounts" % WS_USERNAME)
+try:
+	ws = loginToWs(otpCode)
+except Exception as e:
+	logging.exception("Failed to login")
+	sys.exit(1)
 
-for assetLink in ASSET_LINKS:
-	balance = getWsTradeBalance(ws, assetLink) if assetLink.isWsTradeAccount else getWsNonTradeBalance(ws, assetLink)
-	if balance:
-		updateLunchMoneyAsset(balance, assetLink)
+while True:
+	for assetLink in ASSET_LINKS:
+		logging.info("Updating asset link - %s" % str(assetLink))
+
+		balance = None
+		try:
+			balance = getWsTradeBalance(ws, assetLink) if assetLink.isWsTradeAccount else getWsNonTradeBalance(ws, assetLink)
+			logging.info("Successfully got balance - %s" % str(balance))
+		except Exception as e:
+			logging.exception("Failed to get Wealthsimple balance")
+			continue
+
+		try:
+			updatedAsset = updateLunchMoneyAsset(balance, assetLink)
+			logging.info("Successfully updated Lunch Money asset - %s" % str(updatedAsset))
+		except Exception as e:
+			logging.exception("Failed to update Lunch Money asset")
+
+	time.sleep(60)
