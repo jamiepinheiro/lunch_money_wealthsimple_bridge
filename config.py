@@ -19,3 +19,10 @@ def toAssetLink(rawAssetLink: str):
     return AssetLink(parts[0], parts[1] == "True", parts[2])
 
 ASSET_LINKS = list(map(toAssetLink, environ["ASSET_LINKS"].split(" ")))
+
+# How often to refresh access tokens and sync data
+#  (25 minutes worked well in testing)
+REFRESH_INTERVAL_SECS = environ.get("REFRESH_INTERVAL_SECS", 25 * 60)
+
+# How many times to retry logging in before giving up
+RETRY_LOGIN_TIMES = environ.get("RETRY_LOGIN_TIMES", 5)
