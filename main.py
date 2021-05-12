@@ -37,36 +37,52 @@ def loginToWs(nonWsTradeAccounts: bool, wsTradeAccounts: bool, optCode: str):
 	ws, wsTrade = None, None
 
 	if nonWsTradeAccounts:
-		result = requests.post(
-			WS_OAUTH_URL,
-			data = {
-				"grant_type": "password",
-				"username": WS_USERNAME,
-				"password": WS_PASSWORD,
-				"skip_provision": True,
-				"otp_claim": None,
-				"scope": "invest.read invest.write mfda.read mfda.write mercer.read mercer.write trade.read trade.write empower.read empower.write tax.read tax.write",
-				"client_id": "4da53ac2b03225bed1550eba8e4611e086c7b905a3855e6ed12ea08c246758fa"
-			},
-			headers = {
-				"x-wealthsimple-otp": optCode
-			}
-		)
-		response = json.loads(result.content)
-		ws = WsNonTradeSession(response["access_token"], response["refresh_token"], response["resource_owner_id"])
-		logging.info("Logged into Wealthsimple Non Trade")
+		for _ in range(RETRY_LOGIN_TIMES):
+			try:
+				result = requests.post(
+					WS_OAUTH_URL,
+					data = {
+						"grant_type": "password",
+						"username": WS_USERNAME,
+						"password": WS_PASSWORD,
+						"skip_provision": True,
+						"otp_claim": None,
+						"scope": "invest.read invest.write mfda.read mfda.write mercer.read mercer.write trade.read trade.write empower.read empower.write tax.read tax.write",
+						"client_id": "4da53ac2b03225bed1550eba8e4611e086c7b905a3855e6ed12ea08c246758fa"
+					},
+					headers = {
+						"x-wealthsimple-otp": optCode
+					}
+				)
+				response = json.loads(result.content)
+				ws = WsNonTradeSession(response["access_token"], response["refresh_token"], response["resource_owner_id"])
+				logging.info("Logged into Wealthsimple Non Trade")
+				break
+			except Exception as e:
+				logging.exception("Failed to log into Wealthsimple Non Trade")
+				continue
+		if not ws:
+			raise Exception("Failed to log into Wealthsimple Non Trade")
 
 	if wsTradeAccounts:
-		result = requests.post(
-			WS_TRADE_AUTH_URL,
-			data = {
-				"email": WS_USERNAME,
-				"password": WS_PASSWORD,
-				"otp": optCode
-			}
-		)
-		wsTrade = WsTradeSession(result.headers["X-Access-Token"], result.headers["X-Refresh-Token"])
-		logging.info("Logged into Wealthsimple Trade")
+		for _ in range(RETRY_LOGIN_TIMES):
+			try:
+				result = requests.post(
+					WS_TRADE_AUTH_URL,
+					data = {
+						"email": WS_USERNAME,
+						"password": WS_PASSWORD,
+						"otp": optCode
+					}
+				)
+				wsTrade = WsTradeSession(result.headers["X-Access-Token"], result.headers["X-Refresh-Token"])
+				logging.info("Logged into Wealthsimple Trade")
+				break
+			except Exception as e:
+				logging.exception("Failed to log into Wealthsimple Trade")
+				continue
+		if not wsTrade:
+			raise Exception("Failed to log into Wealthsimple Trade")
 	
 	return WsSessions(ws, wsTrade)
 
@@ -142,7 +158,7 @@ def refreshTokens(wsSessions: WsSessions):
 		)
 		response = json.loads(result.content)
 		ws = WsNonTradeSession(response["access_token"], response["refresh_token"], response["resource_owner_id"])
-		logging.info("Refreshed Ws Non Trade access token")
+		logging.info("Refreshed Wealthsimple Non Trade access token")
 
 	if wsTradeAccounts:
 		result = requests.post(
@@ -152,7 +168,7 @@ def refreshTokens(wsSessions: WsSessions):
 			}
 		)
 		wsTrade = WsTradeSession(result.headers["X-Access-Token"], result.headers["X-Refresh-Token"])
-		logging.info("Refreshed Ws Trade access token")
+		logging.info("Refreshed Wealthsimple Trade access token")
 
 	return WsSessions(ws, wsTrade)
 
@@ -176,14 +192,9 @@ nonWsTradeAccounts = any(map(lambda assetLink: not assetLink.isWsTradeAccount, A
 wsTradeAccounts = any(map(lambda assetLink: assetLink.isWsTradeAccount, ASSET_LINKS))
 
 ws = None
-for _ in range(RETRY_LOGIN_TIMES):
-	try:
-		ws = loginToWs(nonWsTradeAccounts, wsTradeAccounts, otpCode)
-	except Exception as e:
-		logging.exception("Login failed, retrying")
-		continue
-
-if not ws:
+try:
+	ws = loginToWs(nonWsTradeAccounts, wsTradeAccounts, otpCode)
+except Exception as e:
 	logging.error("Failed to login")
 	sys.exit(1)
 
