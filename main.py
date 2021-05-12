@@ -180,6 +180,7 @@ for _ in range(RETRY_LOGIN_TIMES):
 	try:
 		ws = loginToWs(nonWsTradeAccounts, wsTradeAccounts, otpCode)
 	except Exception as e:
+		logging.exception("Login failed, retrying")
 		continue
 
 if not ws:
