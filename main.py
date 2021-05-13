@@ -175,7 +175,7 @@ def refreshTokens(wsSessions: WsSessions):
 if not os.path.isdir("logs"):
 	os.mkdir("logs")
 logging.basicConfig(
-	filename = "logs/%d.log" % int(time.time()),
+	filename = "logs/%s-%d.log" % (WS_USERNAME, int(time.time())),
 	filemode = "w",
 	format = "%(asctime)s: %(levelname)s - %(message)s",
 	level = logging.INFO
