@@ -31,7 +31,6 @@ class WsSessions(NamedTuple):
 
 class Balance(NamedTuple):
 	amount: str
-	asOf: str
 
 def loginToWs(nonWsTradeAccounts: bool, wsTradeAccounts: bool, optCode: str):
 	ws, wsTrade = None, None
@@ -99,7 +98,7 @@ def getWsTradeBalance(wsSessions: WsSessions, assetLink: AssetLink):
 		raise Exception("Failed to get Wealthsimple trade account data", data)
 
 	balance = json.loads(result.content)["results"][-1]
-	return Balance(balance["value"]["amount"], balance["date"])
+	return Balance(balance["value"]["amount"])
 
 def getWsNonTradeBalance(wsSessions: WsSessions, assetLink: AssetLink):
 	response = requests.post(
@@ -118,7 +117,7 @@ def getWsNonTradeBalance(wsSessions: WsSessions, assetLink: AssetLink):
 	balances = json.loads(response.content)["data"]["client"]["netLiquidationValues"]
 	for balance in balances:
 		if balance["accountId"] == assetLink.wsAccountId:
-			return Balance(balance["netLiquidationValue"], balance["date"])
+			return Balance(balance["netLiquidationValue"])
 	
 	raise ("Wealthsimple Non-trade account not found", balances)
 
@@ -126,8 +125,7 @@ def updateLunchMoneyAsset(balance: Balance, assetLink: AssetLink):
 	response = requests.put(
 		LUNCH_MONEY_ASSET_URL + assetLink.lunchMoneyAssetId,
 		data = {
-			"balance": balance.amount,
-			"balance_as_of": balance.asOf,
+			"balance": balance.amount
 		},
 		headers = {
 			"Authorization": "Bearer " + LUNCH_MONEY_API_KEY
