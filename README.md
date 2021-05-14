@@ -6,7 +6,7 @@ A python script to sync balances from Wealthsimple Invest, Trade, and Cash accou
 This script uses the [Unofficial Wealthsimple API's](https://github.com/MarkGalloway/wealthsimple-trade) to fetch balances and then pushes those balances to the corresponding asset in Lunch Money. The script periodically refreshes the access tokens to Wealthsimple so that a OTP code does not need to be entered each time (only once at the start).
 
 ## Prerequisites
-- An installation of [Python3](https://www.python.org/downloads/)
+- An installation of [Python3](https://www.python.org/downloads/).
 
 ## Running
 1) Modify `run.sh` (unix) or `run.bat` (windows) with your account details.
